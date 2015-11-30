@@ -1,8 +1,10 @@
 package net.unikit.database.interfaces.managers;
 
-import net.unikit.database.exceptions.ModelNotFoundException;
+import net.unikit.database.exceptions.ConstraintViolationExceptionCommon;
+import net.unikit.database.exceptions.ModelNotFoundExceptionCommon;
 import net.unikit.database.interfaces.entities.AbstractModel;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -10,7 +12,7 @@ import java.util.List;
  * @author Andreas Berks
  * @since 1.2.1
  */
-public interface AbstractModelManager<EntityType extends AbstractModel, IdType> {
+public interface AbstractModelManager<EntityType extends AbstractModel, IdType extends Serializable> {
     /**
      * Getter for all entities of the table.
      * @return All entities of the table
@@ -22,26 +24,26 @@ public interface AbstractModelManager<EntityType extends AbstractModel, IdType> 
      * @param id The identifier of the wanted entity
      * @return The entity of the table specified by an identifier
      */
-    EntityType getEntity(IdType id) throws ModelNotFoundException;
+    EntityType getEntity(IdType id) throws ModelNotFoundExceptionCommon;
 
     /**
      * Updates an existing entity in the table.
      * @param entity Entity object with new attribute values which should be applied to the existing entity
      */
-    void updateEntity(EntityType entity) throws ModelNotFoundException;
+    void updateEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon;
 
     /**
      * Deletes an existing entity in the table.
      * @param entity The Entity which should be deleted
      */
-    void deleteEntity(EntityType entity) throws ModelNotFoundException;
+    void deleteEntity(EntityType entity) throws ModelNotFoundExceptionCommon;
 
     /**
      * Adds a new entity to the table.
      * @param entity The Entity which should be added
      * @return
      */
-    IdType addEntity(EntityType entity);
+    IdType addEntity(EntityType entity) throws ConstraintViolationExceptionCommon;
 
     /**
      * Creates an empty entity object which must be initialized with setter methods.
