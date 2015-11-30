@@ -1,5 +1,6 @@
 package net.unikit.database.interfaces.managers;
 
+import net.unikit.database.exceptions.ModelNotFoundException;
 import net.unikit.database.interfaces.entities.AbstractModel;
 
 import java.util.List;
@@ -21,19 +22,19 @@ public interface AbstractModelManager<EntityType extends AbstractModel, IdType> 
      * @param id The identifier of the wanted entity
      * @return The entity of the table specified by an identifier
      */
-    EntityType getEntity(IdType id);
+    EntityType getEntity(IdType id) throws ModelNotFoundException;
 
     /**
      * Updates an existing entity in the table.
      * @param entity Entity object with new attribute values which should be applied to the existing entity
      */
-    void updateEntity(EntityType entity);
+    void updateEntity(EntityType entity) throws ModelNotFoundException;
 
     /**
      * Deletes an existing entity in the table.
      * @param entity The Entity which should be deleted
      */
-    void deleteEntity(EntityType entity);
+    void deleteEntity(EntityType entity) throws ModelNotFoundException;
 
     /**
      * Adds a new entity to the table.
