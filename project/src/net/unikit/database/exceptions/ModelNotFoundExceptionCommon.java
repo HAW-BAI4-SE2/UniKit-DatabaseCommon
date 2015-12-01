@@ -9,11 +9,14 @@ import java.io.Serializable;
  */
 public final class ModelNotFoundExceptionCommon extends Exception {
     private AbstractModel entity;
-    private Serializable id;
+    private Object id;
 
     public ModelNotFoundExceptionCommon(AbstractModel entity) {
         this.entity = entity;
-        this.id = entity.getId();
+        if (entity != null)
+            this.id = entity.getId();
+        else
+            this.id = null;
     }
 
     public ModelNotFoundExceptionCommon(Serializable id) {
@@ -25,7 +28,7 @@ public final class ModelNotFoundExceptionCommon extends Exception {
         return entity;
     }
 
-    public Serializable getId() {
+    public Object getId() {
         return id;
     }
 }

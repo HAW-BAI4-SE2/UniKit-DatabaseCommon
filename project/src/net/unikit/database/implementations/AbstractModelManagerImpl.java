@@ -13,8 +13,8 @@ import org.hibernate.Transaction;
 import java.io.Serializable;
 import java.util.List;
 
-public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel, IdType extends Serializable,
-        BaseEntityType extends AbstractModel, BaseIdType extends Serializable> implements AbstractModelManager<EntityType, IdType> {
+public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel, IdType,
+        BaseEntityType extends AbstractModel, BaseIdType extends IdType> implements AbstractModelManager<EntityType, IdType> {
     private SessionFactory sessionFactory;
 
     protected AbstractModelManagerImpl(SessionFactory sessionFactory) {
@@ -69,8 +69,8 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
             return doTransaction(new TransactionAction<EntityType>() {
                 @Override
                 public EntityType run(Session session) throws ModelNotFoundExceptionCommon {
-                    BaseIdType baseId = createBaseIdFromIdType(id);
-                    EntityType entity = (EntityType) session.get(getAnnotatedClass(), baseId);
+                    BaseIdType baseId = (BaseIdType) id;
+                    EntityType entity = (EntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
                     if (entity == null)
                         throw new ModelNotFoundExceptionCommon(entity);
                     return entity;
@@ -88,8 +88,8 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
         doTransaction(new TransactionAction<Void>() {
             @Override
             public Void run(Session session) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon {
-                BaseIdType baseId = createBaseIdFromIdType((IdType) entity.getId());
-                BaseEntityType entityOld = (BaseEntityType) session.get(getAnnotatedClass(), baseId);
+                BaseIdType baseId = (BaseIdType) entity.getId();
+                BaseEntityType entityOld = (BaseEntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
                 if (entityOld == null)
                     throw new ModelNotFoundExceptionCommon(entityOld);
                 updateDatabaseFields(entityOld, (BaseEntityType) entity);
@@ -109,8 +109,8 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
             doTransaction(new TransactionAction<Void>() {
                 @Override
                 public Void run(Session session) throws ModelNotFoundExceptionCommon {
-                    BaseIdType baseId = createBaseIdFromIdType((IdType) entity.getId());
-                    EntityType entityOld = (EntityType) session.get(getAnnotatedClass(), baseId);
+                    BaseIdType baseId = (BaseIdType) entity.getId();
+                    EntityType entityOld = (EntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
                     if (entityOld == null)
                         throw new ModelNotFoundExceptionCommon(entityOld);
                     session.delete(entityOld);
@@ -135,7 +135,7 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
                     } catch (org.hibernate.exception.ConstraintViolationException e) {
                         throw new ConstraintViolationExceptionCommon(e.getCause(), entity);
                     }
-                    return createIdFromBaseIdType(id);
+                    return id;
                 }
             });
         } catch (ModelNotFoundExceptionCommon e) {
@@ -146,8 +146,6 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
     }
 
     public abstract EntityType createEntity();
-    protected abstract IdType createIdFromBaseIdType(BaseIdType id);
-    protected abstract BaseIdType createBaseIdFromIdType(IdType id);
     protected abstract Class getAnnotatedClass();
     protected abstract void updateDatabaseFields(BaseEntityType entityOld, BaseEntityType entityNew);
 }

@@ -12,7 +12,7 @@ import java.util.List;
  * @author Andreas Berks
  * @since 1.2.1
  */
-public interface AbstractModelManager<EntityType extends AbstractModel, IdType extends Serializable> {
+public interface AbstractModelManager<EntityType extends AbstractModel, IdType> {
     /**
      * Getter for all entities of the table.
      * @return All entities of the table
