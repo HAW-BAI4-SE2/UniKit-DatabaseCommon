@@ -25,7 +25,7 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
         ResultType run(Session session) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon;
     }
 
-    private <ResultType> ResultType doTransaction(TransactionAction<ResultType> transactionAction) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon {
+    private <ResultType> ResultType doTransaction(TransactionAction<ResultType> transactionAction) throws ConstraintViolationExceptionCommon, ModelNotFoundExceptionCommon {
         Session session = sessionFactory.openSession();
         Transaction transaction = null;
         ResultType result = null;
@@ -34,15 +34,26 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
             transaction = session.beginTransaction();
             result = transactionAction.run(session);
             transaction.commit();
-        } catch (HibernateException e) {
+        } catch (HibernateException hibernateException) {
             if (transaction != null)
                 transaction.rollback();
 
             try {
-                throw e;
-            } catch (org.hibernate.exception.ConstraintViolationException e1) {
-                throw new ConstraintViolationExceptionCommon(e1.getCause(), null);
+                throw hibernateException;
+            } catch (org.hibernate.exception.ConstraintViolationException e) {
+                // TODO: Refactor! Will only be thrown bei addEntity right now!!!
+                throw new ConstraintViolationExceptionCommon(e.getCause(), null);
             }
+        } catch (ConstraintViolationExceptionCommon constraintViolationExceptionCommon) {
+            if (transaction != null)
+                transaction.rollback();
+
+            throw constraintViolationExceptionCommon;
+        } catch (ModelNotFoundExceptionCommon modelNotFoundExceptionCommon) {
+            if (transaction != null)
+                transaction.rollback();
+
+            throw modelNotFoundExceptionCommon;
         } finally {
             if (session != null)
                 session.close();
