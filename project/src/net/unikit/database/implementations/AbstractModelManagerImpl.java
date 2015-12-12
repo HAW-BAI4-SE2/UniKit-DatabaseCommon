@@ -37,7 +37,12 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
         } catch (HibernateException e) {
             if (transaction != null)
                 transaction.rollback();
-            throw e;
+
+            try {
+                throw e;
+            } catch (org.hibernate.exception.ConstraintViolationException e1) {
+                throw new ConstraintViolationExceptionCommon(e1.getCause(), null);
+            }
         } finally {
             if (session != null)
                 session.close();
