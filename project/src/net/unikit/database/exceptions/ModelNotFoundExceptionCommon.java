@@ -7,7 +7,7 @@ import java.io.Serializable;
 /**
  * Created by Andreas on 29.11.2015.
  */
-public final class ModelNotFoundExceptionCommon extends Exception {
+public class ModelNotFoundExceptionCommon extends Exception {
     private AbstractModel entity;
     private Object id;
 

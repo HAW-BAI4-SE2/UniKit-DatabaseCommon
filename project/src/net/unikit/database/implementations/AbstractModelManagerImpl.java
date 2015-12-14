@@ -2,6 +2,7 @@ package net.unikit.database.implementations;
 
 import com.google.common.collect.ImmutableList;
 import net.unikit.database.exceptions.ConstraintViolationExceptionCommon;
+import net.unikit.database.exceptions.ModelNotAddedExceptionCommon;
 import net.unikit.database.exceptions.ModelNotFoundExceptionCommon;
 import net.unikit.database.interfaces.entities.AbstractModel;
 import net.unikit.database.interfaces.managers.AbstractModelManager;
@@ -13,6 +14,8 @@ import org.hibernate.Transaction;
 import java.io.Serializable;
 import java.util.List;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel, IdType,
         BaseEntityType extends AbstractModel, BaseIdType extends IdType> implements AbstractModelManager<EntityType, IdType> {
     private SessionFactory sessionFactory;
@@ -22,10 +25,10 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
     }
 
     interface TransactionAction<ResultType> {
-        ResultType run(Session session) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon;
+        ResultType run(Session session) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon, ModelNotAddedExceptionCommon;
     }
 
-    private <ResultType> ResultType doTransaction(TransactionAction<ResultType> transactionAction) throws ConstraintViolationExceptionCommon, ModelNotFoundExceptionCommon {
+    private <ResultType> ResultType doTransaction(TransactionAction<ResultType> transactionAction) throws ConstraintViolationExceptionCommon, ModelNotFoundExceptionCommon, ModelNotAddedExceptionCommon {
         Session session = sessionFactory.openSession();
         Transaction transaction = null;
         ResultType result = null;
@@ -34,16 +37,23 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
             transaction = session.beginTransaction();
             result = transactionAction.run(session);
             transaction.commit();
+        } catch (org.hibernate.PropertyValueException e) {
+            if (transaction != null)
+                transaction.rollback();
+
+            // TODO: Refactor! Will only be thrown by addEntity and updateEntity right now!!!
+            throw new ConstraintViolationExceptionCommon(e.getCause(), null);
+        } catch (org.hibernate.exception.ConstraintViolationException e) {
+            if (transaction != null)
+                transaction.rollback();
+
+            // TODO: Refactor! Will only be thrown by addEntity right now!!!
+            throw new ConstraintViolationExceptionCommon(e.getCause(), null);
         } catch (HibernateException hibernateException) {
             if (transaction != null)
                 transaction.rollback();
 
-            try {
-                throw hibernateException;
-            } catch (org.hibernate.exception.ConstraintViolationException e) {
-                // TODO: Refactor! Will only be thrown bei addEntity right now!!!
-                throw new ConstraintViolationExceptionCommon(e.getCause(), null);
-            }
+            throw hibernateException;
         } catch (ConstraintViolationExceptionCommon constraintViolationExceptionCommon) {
             if (transaction != null)
                 transaction.rollback();
@@ -54,6 +64,11 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
                 transaction.rollback();
 
             throw modelNotFoundExceptionCommon;
+        } catch (ModelNotAddedExceptionCommon modelNotAddedExceptionCommon) {
+            if (transaction != null)
+                transaction.rollback();
+
+            throw modelNotAddedExceptionCommon;
         } finally {
             if (session != null)
                 session.close();
@@ -72,7 +87,7 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
                     return ImmutableList.copyOf(entities);
                 }
             });
-        } catch (ModelNotFoundExceptionCommon | ConstraintViolationExceptionCommon e) {
+        } catch (ModelNotFoundExceptionCommon | ConstraintViolationExceptionCommon | ModelNotAddedExceptionCommon e) {
             // NOTE: Those exceptions will never been thrown!
             e.printStackTrace();
             return null;
@@ -81,6 +96,8 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
 
     @Override
     public EntityType getEntity(IdType id) throws ModelNotFoundExceptionCommon {
+        checkNotNull(id);
+
         try {
             return doTransaction(new TransactionAction<EntityType>() {
                 @Override
@@ -92,7 +109,7 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
                     return entity;
                 }
             });
-        } catch (ConstraintViolationExceptionCommon e) {
+        } catch (ConstraintViolationExceptionCommon | ModelNotAddedExceptionCommon e) {
             // NOTE: This exception will never been thrown!
             e.printStackTrace();
             return null;
@@ -100,35 +117,55 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
     }
 
     @Override
-    public void updateEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon {
+    public void updateEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon, ModelNotAddedExceptionCommon {
+        checkNotNull(entity);
+
         doTransaction(new TransactionAction<Void>() {
             @Override
-            public Void run(Session session) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon {
+            public Void run(Session session) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon, ModelNotAddedExceptionCommon {
                 BaseIdType baseId = (BaseIdType) entity.getId();
-                BaseEntityType entityOld = (BaseEntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
+                BaseEntityType entityOld = null;
+                try {
+                    entityOld = (BaseEntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
+                } catch (IllegalArgumentException e) {
+                    throw new ModelNotAddedExceptionCommon(entity);
+                }
                 if (entityOld == null)
                     throw new ModelNotFoundExceptionCommon(entityOld);
+
                 updateDatabaseFields(entityOld, (BaseEntityType) entity);
                 try {
                     session.update(entityOld);
                 } catch (org.hibernate.exception.ConstraintViolationException e) {
                     throw new ConstraintViolationExceptionCommon(e.getCause(), entity);
                 }
+
+                // Update auto generated fields
+                updateDatabaseFields((BaseEntityType) entity, entityOld);
+
                 return null;
             }
         });
     }
 
     @Override
-    public void deleteEntity(EntityType entity) throws ModelNotFoundExceptionCommon {
+    public void deleteEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ModelNotAddedExceptionCommon {
+        checkNotNull(entity);
+
         try {
             doTransaction(new TransactionAction<Void>() {
                 @Override
-                public Void run(Session session) throws ModelNotFoundExceptionCommon {
+                public Void run(Session session) throws ModelNotFoundExceptionCommon, ModelNotAddedExceptionCommon {
                     BaseIdType baseId = (BaseIdType) entity.getId();
-                    EntityType entityOld = (EntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
+                    EntityType entityOld = null;
+                    try {
+                        entityOld = (EntityType) session.get(getAnnotatedClass(), (Serializable) baseId);
+                    } catch (IllegalArgumentException e) {
+                        throw new ModelNotAddedExceptionCommon(entity);
+                    }
                     if (entityOld == null)
                         throw new ModelNotFoundExceptionCommon(entityOld);
+
                     session.delete(entityOld);
                     return null;
                 }
@@ -141,6 +178,8 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
 
     @Override
     public IdType addEntity(EntityType entity) throws ConstraintViolationExceptionCommon {
+        checkNotNull(entity);
+
         try {
             return doTransaction(new TransactionAction<IdType>() {
                 @Override
@@ -151,10 +190,15 @@ public abstract class AbstractModelManagerImpl<EntityType extends AbstractModel,
                     } catch (org.hibernate.exception.ConstraintViolationException e) {
                         throw new ConstraintViolationExceptionCommon(e.getCause(), entity);
                     }
+
+                    // Update auto generated fields
+                    EntityType entityNew = (EntityType) session.get(getAnnotatedClass(), (Serializable) id);
+                    updateDatabaseFields((BaseEntityType) entity, (BaseEntityType) entityNew);
+
                     return id;
                 }
             });
-        } catch (ModelNotFoundExceptionCommon e) {
+        } catch (ModelNotFoundExceptionCommon | ModelNotAddedExceptionCommon e) {
             // NOTE: This exception will never been thrown!
             e.printStackTrace();
             return null;

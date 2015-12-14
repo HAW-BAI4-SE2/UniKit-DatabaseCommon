@@ -1,6 +1,8 @@
 package net.unikit.database.interfaces.managers;
 
 import net.unikit.database.exceptions.ConstraintViolationExceptionCommon;
+import net.unikit.database.exceptions.MissingPropertyExceptionCommon;
+import net.unikit.database.exceptions.ModelNotAddedExceptionCommon;
 import net.unikit.database.exceptions.ModelNotFoundExceptionCommon;
 import net.unikit.database.interfaces.entities.AbstractModel;
 
@@ -30,20 +32,20 @@ public interface AbstractModelManager<EntityType extends AbstractModel, IdType> 
      * Updates an existing entity in the table.
      * @param entity Entity object with new attribute values which should be applied to the existing entity
      */
-    void updateEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ConstraintViolationExceptionCommon;
+    void updateEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ModelNotAddedExceptionCommon, ConstraintViolationExceptionCommon, MissingPropertyExceptionCommon;
 
     /**
      * Deletes an existing entity in the table.
      * @param entity The Entity which should be deleted
      */
-    void deleteEntity(EntityType entity) throws ModelNotFoundExceptionCommon;
+    void deleteEntity(EntityType entity) throws ModelNotFoundExceptionCommon, ModelNotAddedExceptionCommon;
 
     /**
      * Adds a new entity to the table.
      * @param entity The Entity which should be added
      * @return
      */
-    IdType addEntity(EntityType entity) throws ConstraintViolationExceptionCommon;
+    IdType addEntity(EntityType entity) throws ConstraintViolationExceptionCommon, MissingPropertyExceptionCommon;
 
     /**
      * Creates an empty entity object which must be initialized with setter methods.
